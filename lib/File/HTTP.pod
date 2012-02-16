@@ -3,6 +3,7 @@
 File::HTTP - open, read and seek into remote files and directories transparently
 
 =head1 SYNOPSIS
+    
     use File::HTTP qw(:open);
     
     # open and read a remote file (server must allow range queries)
@@ -49,6 +50,10 @@ File::HTTP - open, read and seek into remote files and directories transparently
         chomp;
 	...
     }
+
+    # make your module HTTP compatible when File::HTTP is installed.
+    # on top of module:
+    eval {use File::HTTP qw(:open)};
     
 =head1 DESCRIPTION
 
@@ -58,8 +63,10 @@ C<File::HTTP> open, read and seek into remote files and directories transparentl
 
 =item open [MODE] FILE
 
-Act exaclty as CORE::open, but also work with remote HTTP files.
-Falls back to CORE::open when the path looks like a local file.
+=item stat FH or FILE
+
+Act exaclty as CORE::open and CORE::stat, but also work with remote HTTP files.
+Falls back to CORE::open and CORE::stat when the path looks like a local file.
 Returns a Tied filehanlder when opening a remote file.
 
 Only works with Web servers that allow range queries (see CAVEATS).
@@ -69,16 +76,9 @@ You should use C<open_stream> when servers do not allow range queries.
 
 =item opendir DIR
 
-=item readdir DIRH
+=item readdir/rewinddir/telldir/seekdir/closedir DIRH
 
-=item rewinddir DIRH
-
-=item telldir DIRH
-
-=item seekdir DIRH
-
-=item closedir DIRH
-
+Exported with the :opendir tag
 Act exaclty as CORE::opendir and associated CORE functions, but also work with
 remote HTTP directories.
 Falls back to CORE::opendir when the path looks like a local directory.
@@ -97,6 +97,7 @@ open a readable but not seekable filehandle to the specified URL
 =item slurp_stream URL
 
 context dependent slurping of an url
+
     my $content = slurp_stream($url);
     my @lines = slurp_stream($url);
 
@@ -118,7 +119,7 @@ functions are exported
 
    use File::HTTP qw(:open);
    # same as:
-   use File::HTTP qw(open stat _s _e);
+   use File::HTTP qw(open stat);
    
    use File::HTTP qw(:opendir);
    # same as:
@@ -177,7 +178,7 @@ date in state
 
 =head1 SEE ALSO
 
-L<Tie::Handle::HTTP >
+L<Tie::Handle::HTTP>
 
 =head1 AUTHOR
 

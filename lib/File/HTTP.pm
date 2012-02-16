@@ -10,12 +10,13 @@ use Fcntl ();
 use Exporter;
 use bytes ();
 use Time::HiRes qw(time);
+use constant 1.03; # hash ref, perl 5.7.2
 
 # on demand modules:
 # - Time::y2038 or Time::Local
 # - IO::Socket::SSL
 
-our $VERSION = '0.87';
+our $VERSION = '0.871';
 
 our @EXPORT_OK = qw(
 	open stat open_at open_stream slurp_stream
