@@ -65,23 +65,31 @@ C<File::HTTP> open, read and seek into remote files and directories transparentl
 
 =item stat FH or FILE
 
+Imported with the :open or :all tags.
+
 Act exaclty as CORE::open and CORE::stat, but also work with remote HTTP files.
+
 Falls back to CORE::open and CORE::stat when the path looks like a local file.
+
 Returns a Tied filehanlder when opening a remote file.
 
 Only works with Web servers that allow range queries (see CAVEATS).
+
 You should use C<open_stream> when servers do not allow range queries.
 
 =back
 
 =item opendir DIR
 
-=item readdir/rewinddir/telldir/seekdir/closedir DIRH
+=item readdir / rewinddir / telldir / seekdir / closedir DIRH
 
-Exported with the :opendir tag
+Imported with the :opendir or :all tags.
+
 Act exaclty as CORE::opendir and associated CORE functions, but also work with
 remote HTTP directories.
+
 Falls back to CORE::opendir when the path looks like a local directory.
+
 Returns a Tied filehanlder when opening a remote directory.
 
 Only works with Web servers that allow directory listing.
@@ -143,7 +151,9 @@ You can also use the -everywhere tag to export emulation function into all names
 =over 4
 
 C<open> only works with remote web server and ressources that allow range queries.
+
 Dynamic ressources such as PHP or CGI typically do not work with range queries.
+
 C<open_stream> does not have such limitations, but does not allow seeks.
 
 C<opendir> only works with remote web servers and ressources that allow directory

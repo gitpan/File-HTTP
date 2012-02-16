@@ -19,6 +19,11 @@ no_index:
   directory:
     - inc
     - t
+recommends:
+  IO::Socket::SSL: 0
+  Time::y2038: 0
+requires:
+  constant: 1.03
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.871
+version: 0.872

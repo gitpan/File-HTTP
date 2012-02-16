@@ -1,3 +1,7 @@
+0.872 2012-02-16
+    - forgot to actually _save_ the new makefile...
+    - some more fixes in POD
+
 0.871 2012-02-16
     - requires constant 1.03 (multiple constant definition,
       form perl 5.7.2)
