@@ -16,7 +16,7 @@ use constant 1.03; # hash ref, perl 5.7.2
 # - Time::y2038 or Time::Local
 # - IO::Socket::SSL
 
-our $VERSION = '0.872';
+our $VERSION = '0.88';
 
 our @EXPORT_OK = qw(
 	open stat open_at open_stream slurp_stream
@@ -551,12 +551,16 @@ sub TIEHANDLE {
 				if ($location =~ m!^https?://!i) {
 					$url = $location;
 				}
+				elsif ($location =~ m!^//!) {
+					$url =~ m!^(https?:)//!;
+					$url = $1.$location;
+				}
 				elsif ($location =~ m!^/!) {
-					my ($base) = $url =~ m!^(https?://[^/]+)!;
-					$url = $base.$location;
+					$url =~ m!^(https?://[^/]+)!;
+					$url = $1.$location;
 				}
 				else {
-					$url =~ s!#.+!!;
+					$url =~ s!#.*!!;
 					$url =~ s![^/]+$!!;
 					$url .= $location;
 				}

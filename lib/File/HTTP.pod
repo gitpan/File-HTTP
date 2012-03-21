@@ -14,10 +14,13 @@ File::HTTP - open, read and seek into remote files and directories transparently
         ...
     }
     
-    # remote file is seekable
+    # remote file is seekable in all directions
     seek($fh, 500, 0);
-    read(my $fh, my $buf, 40);
+    read($fh, my $buf, 40);
     
+    seek($fh, -40, 1);
+    read($fh, my $buf2, 40);   
+
     # $/ behaves as with regular files
     local $/ = \52;
     $buf = <$fh>;

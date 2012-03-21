@@ -1,3 +1,7 @@
+0.88  2012-03-21
+    - protocol redirection handling
+    - minor POD clarifications
+
 0.872 2012-02-16
     - forgot to actually _save_ the new makefile...
     - some more fixes in POD
