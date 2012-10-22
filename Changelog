@@ -1,3 +1,8 @@
+0.89  2012-10-22
+    - update to Module::Install 1.06 following Tatsuhiko
+      Miyagawafor's recommandation for perl 5.16 compatibility:
+      http://weblog.bulknews.net/post/33907905561/do-not-ship-modules-with-module-install-1-04
+
 0.88  2012-03-21
     - protocol redirection handling
     - minor POD clarifications
