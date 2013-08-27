@@ -114,6 +114,21 @@ context dependent slurping of an url
 
 =back
 
+=item get URL [follow redirections]
+
+slurps an url into a string, also also returning request and response
+headers strings in list context.
+Contrary to slrup_stream, default behavior is to ignore redirections
+
+    my $body = get($url);
+    my $body = get($url, 1); # follow redirections
+    my ($request_headers, $response_headers, $body) = get($url);
+
+If set to follow redirections, $request_headers and $response_headers
+will correspond to the last emitted request.
+
+=back
+
 =item open_at URL
 
 =back

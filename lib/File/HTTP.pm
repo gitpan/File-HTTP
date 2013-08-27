@@ -16,10 +16,10 @@ use constant 1.03; # hash ref, perl 5.7.2
 # - Time::y2038 or Time::Local
 # - IO::Socket::SSL
 
-our $VERSION = '0.89';
+our $VERSION = '0.90';
 
 our @EXPORT_OK = qw(
-	open stat open_at open_stream slurp_stream
+	open stat open_at open_stream slurp_stream get
 	opendir readdir rewinddir telldir seekdir closedir 
 	_e _s
 );
@@ -82,12 +82,15 @@ use constant IPPROTO_TCP	=> &Socket::IPPROTO_TCP;
 use constant READ_MODE		=> &Fcntl::S_IRUSR | &Fcntl::S_IRGRP | &Fcntl::S_IROTH;
 
 # user modifiable global parameters
+our $REQUEST_HEADERS;
+our $RESPONSE_HEADERS;
+our $IGNORE_REDIRECTIONS;
 our $VERBOSE			= DEBUG;
 our $MAX_REDIRECTIONS		= 7;
 our $MAX_HEADER_LINES		= 50;
 our $MAX_HEADER_SIZE		= 65536;
 our $MAX_SEC_NO_CLOSE		= 3;
-our $MAX_LENGTH_SKIP		= 128*1024;
+our $MAX_LENGTH_SKIP		= 16*1024;
 our $USER_AGENT			= __PACKAGE__. '/'. $VERSION;
 our $TUNNELING_USER_AGENT;	# default to $USER_AGENT when undefined
 
@@ -305,6 +308,16 @@ sub slurp_stream {
 	}
 }
 
+sub get {
+	my $url = shift;
+	local $IGNORE_REDIRECTIONS = not shift;
+	local $REQUEST_HEADERS;
+	local $RESPONSE_HEADERS;
+	local $/;
+	my $fh = open_stream($url);
+	return ($REQUEST_HEADERS, $RESPONSE_HEADERS, $fh && <$fh>)
+}
+
 sub _connected {
 	my $self = shift;
 	no warnings;
@@ -312,8 +325,8 @@ sub _connected {
 }
 
 sub _handshake {
-	my $self = shift;
-	my $req_headers = join("\015\012", @_, '', '');
+	my ($self, $req_headers) = @_;
+
 	my $fh = $self->[FH];
 	DEBUG && warn $req_headers;
 	my $headers;
@@ -369,12 +382,33 @@ sub _initiate {
 	elsif (DEBUG) {
 		warn "not connected";
 	}
+
+	$REQUEST_HEADERS = do {
+		my @h = (
+			"GET $self->[PATH] HTTP/1.0",
+			"Host: $self->[NETLOC]",
+			"User-Agent: $USER_AGENT",
+			"Connection: close",
+		);
+		push @h, "Proxy-Connection: close" if $self->[CONNECT_NETLOC] && $self->[PROTO] ne 'HTTPS';
+		push @h, "Range: bytes=$self->[OFFSET]-" if defined $self->[OFFSET];
+		push @h, "Authorization: Basic ". MIME::Base64::encode_base64($self->[AUTH]) if $self->[AUTH];
+	
+	 	join("\015\012", @h, '', '')
+	};
+
+	die "error: ".&Errno::EFAULT unless $self->[IP]; # Bad address
+
 	$self->[FH] = undef;
 	$self->[REQUEST_TIME] = time;
 	$self->[LAST_HEADERS_SIZE] = 0;
 	socket($self->[FH], AF_INET, SOCK_STREAM, IPPROTO_TCP) || die $!;
 	select((select($self->[FH]), $|=1)[0]); # autoflush
-	connect($self->[FH], Socket::sockaddr_in($self->[PORT], $self->[IP])) || die $!;
+	for (1..10) {
+		my $status = connect($self->[FH], Socket::sockaddr_in($self->[PORT], $self->[IP]));
+		last if $status;
+		die $! unless $_ < 3 && $! =~ /Interrupted system call/i;
+	}
 	
 	$self->[FH_STAT] ||= [ CORE::stat($self->[FH]) ];
 
@@ -386,8 +420,12 @@ sub _initiate {
 		}
 		if ($self->[CONNECT_NETLOC]) {
 			my ($code, $headers) = $self->_handshake(
-				"CONNECT $self->[CONNECT_NETLOC] HTTP/1.0",
-				"User-Agent: ". ($TUNNELING_USER_AGENT||$USER_AGENT),
+				join("\015\012",
+					"CONNECT $self->[CONNECT_NETLOC] HTTP/1.0",
+					"User-Agent: ". ($TUNNELING_USER_AGENT||$USER_AGENT),
+					'',
+					''
+				)
 			);
 			die "error: HTTP error $code from proxy during CONNECT\n" unless $code == 200;
 		}
@@ -395,31 +433,21 @@ sub _initiate {
 #		timed {
 			IO::Socket::SSL->start_SSL($self->[FH],
 				SSL_session_cache_size	=> 100,
+				SSL_verify_mode => &IO::Socket::SSL::SSL_VERIFY_NONE,
 			);
 #		} "SSL start $self->[PATH] @ $self->[OFFSET]";
 	}
 	
-	my @headers_list = (
-		"GET $self->[PATH] HTTP/1.0",
-		"Host: $self->[NETLOC]",
-		"User-Agent: $USER_AGENT",
-		"Connection: close",
-	);
-	
-	push @headers_list, "Proxy-Connection: close" if $self->[CONNECT_NETLOC] && $self->[PROTO] ne 'HTTPS';
-	push @headers_list, "Range: bytes=$self->[OFFSET]-" if defined $self->[OFFSET];
-	push @headers_list, "Authorization: Basic ". MIME::Base64::encode_base64($self->[AUTH]) if $self->[AUTH];
-	
-	my ($code, $headers) = $self->_handshake(@headers_list);
+	(my $code, $RESPONSE_HEADERS) = $self->_handshake($REQUEST_HEADERS);
 
 	$self->[RESPONSE_TIME] = time;
 
 	if ($code != (defined($self->[OFFSET]) ? 206 : 200)) {
-		if ($code =~ /^3/ && $headers =~ /\015?\012Location: ([^\015\012]+)/i) {
-			die "redirection: $1\n";
+		if ($code =~ /^3/ && $RESPONSE_HEADERS =~ /\015?\012Location: ([^\015\012]+)/i) {
+			die "redirection: $1\n" unless $IGNORE_REDIRECTIONS;
 		}
 		else {
-			$self->[CONTENT_LENGTH] ||= ($headers =~ /\015?\012Content-Length: (\d+)/i && $1);
+			$self->[CONTENT_LENGTH] ||= ($RESPONSE_HEADERS =~ /\015?\012Content-Length: (\d+)/i && $1);
 			if ($code =~ /^200$|^416$/ && $self->[OFFSET] >= $self->[CONTENT_LENGTH]) {
 				DEBUG && warn "out of range\n";
 				CORE::open($self->[FH] = undef, '<', '/dev/null') || CORE::open($self->[FH] = undef, '<', 'nul');
@@ -430,22 +458,22 @@ sub _initiate {
 			}
 		}
 	}
-	if ($headers =~ m!\015?\012Transfert-Encoding: +chunked!i) {
+	if ($RESPONSE_HEADERS =~ m!\015?\012Transfert-Encoding: +chunked!i) {
 		$! = $HTTP2FS_error{$code} || &Errno::ENOSYS; # ENOSYS: Function not implemented
 		die "error: $!\n";
 	}
 	
 	unless (defined $self->[CONTENT_LENGTH]) {
-		($self->[CONTENT_LENGTH]) = $headers =~ m!\015?\012Content-Range: +bytes +\d*-\d*/(\d+)!i;
+		($self->[CONTENT_LENGTH]) = $RESPONSE_HEADERS =~ m!\015?\012Content-Range: +bytes +\d*-\d*/(\d+)!i;
 		unless (defined $self->[CONTENT_LENGTH]) {
-			($self->[CONTENT_LENGTH]) = $headers =~ m!\015?\012Content-Length: (\d+)!i;
+			($self->[CONTENT_LENGTH]) = $RESPONSE_HEADERS =~ m!\015?\012Content-Length: (\d+)!i;
 		}
 	}
 	unless (defined $self->[CONTENT_TYPE]) {
-		($self->[CONTENT_TYPE]) = $headers =~ m!\015?\012Content-Type: +([^\015\012]+)!i;
+		($self->[CONTENT_TYPE]) = $RESPONSE_HEADERS =~ m!\015?\012Content-Type: +([^\015\012]+)!i;
 	}
 	unless (defined $self->[LAST_MODIFIED]) {
-		($self->[LAST_MODIFIED]) = $headers =~ m!\015?\012Last-Modified: +([^\015\012]+)!i;
+		($self->[LAST_MODIFIED]) = $RESPONSE_HEADERS =~ m!\015?\012Last-Modified: +([^\015\012]+)!i;
 	}
 	
 	return unless defined $self->[OFFSET];
@@ -532,13 +560,10 @@ sub TIEHANDLE {
 				DEBUG && warn "Proxy: $self->[HOST]:$self->[PORT]\n";
 			}
 		}
-		
+
 		$self->[IP] = Socket::inet_aton($self->[HOST]);
-		unless ($self->[IP]) {
-			$! = &Errno::EFAULT; # Bad address
-			return undef;
-		}
 		eval { $self->_initiate };
+
 
 		if ($@) {
 			if ($@ =~ /^redirection: ([^\n]+)/) {
