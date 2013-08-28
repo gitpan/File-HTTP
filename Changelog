@@ -1,9 +1,12 @@
-0.90  2013-08-
-    - $MAX_LENGTH_SKIP default value reduced from 128KB to 16KB
+0.91  2013-08-28
+    - get(): returns '502' response headers when none was received
+
+0.90  2013-08-27
+    - get() function added
     - retries connection on signal interruption
     - SSL_verify_mode explicitely set to SSL_VERIFY_NONE in
       IO::Socket::SSL constructor arguments
-    - get() function added
+    - $MAX_LENGTH_SKIP default value reduced from 128KB to 16KB
 
 0.89  2012-10-22
     - update to Module::Install 1.06 following Tatsuhiko

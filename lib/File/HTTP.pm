@@ -16,7 +16,7 @@ use constant 1.03; # hash ref, perl 5.7.2
 # - Time::y2038 or Time::Local
 # - IO::Socket::SSL
 
-our $VERSION = '0.90';
+our $VERSION = '0.91';
 
 our @EXPORT_OK = qw(
 	open stat open_at open_stream slurp_stream get
@@ -315,7 +315,11 @@ sub get {
 	local $RESPONSE_HEADERS;
 	local $/;
 	my $fh = open_stream($url);
-	return ($REQUEST_HEADERS, $RESPONSE_HEADERS, $fh && <$fh>)
+	return (
+		$REQUEST_HEADERS,
+		$RESPONSE_HEADERS || "HTTP/1.0 502 Bad Gateway\015\012\015\012",
+		$fh ? <$fh> : ''
+	)
 }
 
 sub _connected {
